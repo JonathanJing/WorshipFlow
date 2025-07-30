@@ -80,10 +80,26 @@ def song_manager_page():
                     
                     try:
                         config.save_song(song_id, song_data)
-                        st.success(f"诗歌 '{title}' 已保存!")
+                        # 显示详细的成功信息
+                        success_msg = f"✅ **诗歌添加成功！**\n\n"
+                        success_msg += f"**标题:** {title}\n"
+                        if author:
+                            success_msg += f"**作者:** {author}\n"
+                        if key:
+                            success_msg += f"**调性:** {key}\n"
+                        if tags:
+                            success_msg += f"**标签:** {', '.join(tags)}\n"
+                        success_msg += f"**保存位置:** data/songs/{song_id}.json"
+                        
+                        st.success(success_msg)
+                        
+                        # 显示后续操作提示
+                        st.info("💡 **接下来你可以:**\n- 在「查看诗歌」标签页中查看刚添加的诗歌\n- 前往「敬拜流程设计」页面使用这首诗歌")
+                        
+                        # 自动刷新页面以清空表单
                         st.rerun()
                     except Exception as e:
-                        st.error(f"保存失败: {e}")
+                        st.error(f"❌ 保存失败: {e}")
     
     with tab2:
         st.subheader("诗歌库")
@@ -152,17 +168,20 @@ def worship_flow_designer():
             format_func=lambda x: next(title for k, title in song_options if k == x)
         )
     
+    # 始终准备基础流程数据
+    basic_flow_data = {
+        "date": str(service_date),
+        "sermon_title": sermon_title,
+        "key_scripture": key_scripture,
+        "worship_flow": []
+    }
+    
     if sermon_title and key_scripture and selected_songs:
         st.write("---")
         st.subheader("🎼 敬拜流程预览")
         
         if 'flow_data' not in st.session_state:
-            st.session_state.flow_data = {
-                "date": str(service_date),
-                "sermon_title": sermon_title,
-                "key_scripture": key_scripture,
-                "worship_flow": []
-            }
+            st.session_state.flow_data = basic_flow_data
         
         for i, song_id in enumerate(selected_songs):
             song = songs[song_id]
@@ -259,48 +278,68 @@ def worship_flow_designer():
                 st.text(song['lyrics'])
         
         st.write("---")
-        if st.button("💾 保存敬拜流程"):
-            timestamp = datetime.now().strftime("%H%M%S")
-            flow_id = f"{service_date}_{timestamp}_service"
-            
-            flow_items = []
-            for i, song_id in enumerate(selected_songs):
-                # Add opening transition for first song or regular transitions for others
-                if f"selected_transition_{i}" in st.session_state:
-                    dimension = st.session_state.get(f"selected_dimension_{i}", "未指定")
-                    transition_type = "opening" if i == 0 else "transition"
-                    
-                    flow_items.append({
-                        "type": "transition_text",
-                        "content": st.session_state[f"selected_transition_{i}"],
-                        "dimension": dimension,
-                        "transition_type": transition_type,
-                        "from_song": selected_songs[i-1] if i > 0 else None,
-                        "to_song": song_id
-                    })
+        
+        # 准备流程数据
+        flow_items = []
+        for i, song_id in enumerate(selected_songs):
+            # Add opening transition for first song or regular transitions for others
+            if f"selected_transition_{i}" in st.session_state:
+                dimension = st.session_state.get(f"selected_dimension_{i}", "未指定")
+                transition_type = "opening" if i == 0 else "transition"
                 
                 flow_items.append({
-                    "type": "song",
-                    "song_id": song_id
+                    "type": "transition_text",
+                    "content": st.session_state[f"selected_transition_{i}"],
+                    "dimension": dimension,
+                    "transition_type": transition_type,
+                    "from_song": selected_songs[i-1] if i > 0 else None,
+                    "to_song": song_id
                 })
             
-            flow_data = {
-                "date": str(service_date),
-                "sermon_title": sermon_title,
-                "key_scripture": key_scripture,
-                "worship_flow": flow_items
-            }
-            
-            try:
-                config.save_flow(flow_id, flow_data)
-                st.success("敬拜流程已保存!")
+            flow_items.append({
+                "type": "song",
+                "song_id": song_id
+            })
+        
+        flow_data = {
+            "date": str(service_date),
+            "sermon_title": sermon_title,
+            "key_scripture": key_scripture,
+            "worship_flow": flow_items
+        }
+        
+        # 将流程数据存储到session state中，以便排练模式使用
+        st.session_state.rehearsal_flow = flow_data
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 保存敬拜流程", use_container_width=True):
+                timestamp = datetime.now().strftime("%H%M%S")
+                flow_id = f"{service_date}_{timestamp}_service"
                 
-                if st.button("🎭 进入排练模式"):
-                    st.session_state.rehearsal_flow = flow_data
-                    st.session_state.page = "rehearsal"
+                try:
+                    config.save_flow(flow_id, flow_data)
+                    st.success("敬拜流程已保存!")
                     st.rerun()
-            except Exception as e:
-                st.error(f"保存失败: {e}")
+                except Exception as e:
+                    st.error(f"保存失败: {e}")
+        
+        with col2:
+            if st.button("🎭 进入排练模式", use_container_width=True):
+                st.session_state.page = "rehearsal"
+                st.rerun()
+    
+    else:
+        # 即使没有完成所有步骤，也存储基础数据并提供排练模式入口
+        st.session_state.rehearsal_flow = basic_flow_data
+        
+        st.write("---")
+        st.info("💡 **提示:** 填写证道主题、核心经文并选择诗歌后，可以查看完整的敬拜流程预览")
+        
+        if st.button("🎭 进入排练模式", help="即使流程未完成也可以预览"):
+            st.session_state.page = "rehearsal"
+            st.rerun()
 
 def generate_transitions(sermon_title, key_scripture, prev_song, current_song):
     model = config.get_model()
@@ -437,6 +476,14 @@ def rehearsal_mode():
     
     flow = st.session_state.rehearsal_flow
     songs = config.load_songs()
+    
+    # 检查流程是否为空
+    if not flow.get('worship_flow') and not flow.get('sermon_title'):
+        st.info("📋 **流程信息不完整**\n\n当前流程为空，请返回设计器添加内容：\n- 填写证道主题和核心经文\n- 选择敬拜诗歌\n- 生成串词连接")
+        if st.button("🔙 返回设计器"):
+            st.session_state.page = "flow_designer"
+            st.rerun()
+        return
     
     st.write(f"**主日日期:** {flow['date']}")
     st.write(f"**证道主题:** {flow['sermon_title']}")
