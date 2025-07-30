@@ -1,0 +1,63 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: worshipflow
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        # 扩缩容配置
+        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/minScale: "0"
+        
+        # 资源配置
+        run.googleapis.com/memory: "1Gi"
+        run.googleapis.com/cpu: "1"
+        
+        # 网络配置
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: worshipflow-service-account  # 可选：自定义服务账户
+      containers:
+      - image: gcr.io/PROJECT_ID/worshipflow:latest  # 替换 PROJECT_ID
+        ports:
+        - containerPort: 8080
+          name: http1
+        env:
+        - name: GCS_BUCKET_NAME
+          value: "PROJECT_ID-worshipflow-data"  # 替换 PROJECT_ID
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "PROJECT_ID"  # 替换 PROJECT_ID
+        - name: PORT
+          value: "8080"
+        # 可选：如果使用API Key而不是服务账户
+        # - name: GEMINI_API_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: gemini-api-key
+        #       key: api-key
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 1000m
+          requests:
+            memory: 512Mi
+            cpu: 100m
+        # 健康检查
+        livenessProbe:
+          httpGet:
+            path: /_stcore/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /_stcore/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5

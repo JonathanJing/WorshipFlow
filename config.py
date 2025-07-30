@@ -1,9 +1,9 @@
 import os
-import json
 from google.auth import default
 from google.auth.transport.requests import Request
 import google.generativeai as genai
 from dotenv import load_dotenv
+from storage import storage_manager
 
 load_dotenv()
 
@@ -52,39 +52,24 @@ class Config:
     
     @staticmethod
     def load_songs():
-        songs_dir = "data/songs"
-        songs = {}
-        
-        if not os.path.exists(songs_dir):
-            return songs
-            
-        for filename in os.listdir(songs_dir):
-            if filename.endswith('.json'):
-                filepath = os.path.join(songs_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        song_data = json.load(f)
-                        song_id = filename.replace('.json', '')
-                        songs[song_id] = song_data
-                except Exception as e:
-                    print(f"Error loading song {filename}: {e}")
-        
-        return songs
+        """Load all songs from Cloud Storage or local fallback"""
+        return storage_manager.list_items('songs')
     
     @staticmethod
     def save_song(song_id, song_data):
-        songs_dir = "data/songs"
-        os.makedirs(songs_dir, exist_ok=True)
-        
-        filepath = os.path.join(songs_dir, f"{song_id}.json")
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(song_data, f, ensure_ascii=False, indent=2)
+        """Save song to Cloud Storage or local fallback"""
+        success = storage_manager.save_json('songs', song_id, song_data)
+        if not success:
+            raise Exception("Failed to save song data")
     
     @staticmethod
     def save_flow(flow_id, flow_data):
-        flows_dir = "data/flows"
-        os.makedirs(flows_dir, exist_ok=True)
-        
-        filepath = os.path.join(flows_dir, f"{flow_id}.json")
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(flow_data, f, ensure_ascii=False, indent=2)
+        """Save flow to Cloud Storage or local fallback"""
+        success = storage_manager.save_json('flows', flow_id, flow_data)
+        if not success:
+            raise Exception("Failed to save flow data")
+    
+    @staticmethod
+    def load_flows():
+        """Load all flows from Cloud Storage or local fallback"""
+        return storage_manager.list_items('flows')
