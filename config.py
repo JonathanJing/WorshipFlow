@@ -16,17 +16,28 @@ class Config:
         api_key = os.getenv('GEMINI_API_KEY')
         
         if service_account_path and os.path.exists(service_account_path):
-            credentials, project = default()
-            if credentials.expired:
-                credentials.refresh(Request())
-            
-            genai.configure(credentials=credentials)
-            self.project_id = project or os.getenv('GOOGLE_CLOUD_PROJECT')
-            print(f"Using service account authentication for project: {self.project_id}")
+            try:
+                credentials, project = default()
+                if credentials.expired:
+                    credentials.refresh(Request())
+                
+                genai.configure(credentials=credentials)
+                self.project_id = project or os.getenv('GOOGLE_CLOUD_PROJECT')
+                print(f"Using service account authentication for project: {self.project_id}")
+                self.auth_method = "service_account"
+            except Exception as e:
+                print(f"Service account authentication failed: {e}")
+                if api_key:
+                    print("Falling back to API key authentication")
+                    genai.configure(api_key=api_key)
+                    self.auth_method = "api_key"
+                else:
+                    raise
             
         elif api_key:
             genai.configure(api_key=api_key)
             print("Using API key authentication")
+            self.auth_method = "api_key"
             
         else:
             raise ValueError(

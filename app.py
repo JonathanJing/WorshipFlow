@@ -1,6 +1,4 @@
 import streamlit as st
-import json
-import os
 from datetime import datetime
 from config import Config
 
@@ -169,20 +167,50 @@ def worship_flow_designer():
         for i, song_id in enumerate(selected_songs):
             song = songs[song_id]
             
-            st.write(f"### {i+1}. {song['title']}")
-            
-            if i > 0:
+            # Show transition section before each song
+            if i == 0:
+                # Opening transition for first song
+                st.write(f"#### 🎬 敬拜开场引入《{song['title']}》")
+                
                 col1, col2 = st.columns([3, 1])
+                with col2:
+                    if st.button(f"生成开场词", key=f"generate_opening_{i}"):
+                        with st.spinner("正在生成开场词..."):
+                            try:
+                                transitions = generate_opening_transition(
+                                    sermon_title, key_scripture, song
+                                )
+                                st.session_state[f"transition_{i}"] = transitions
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"生成开场词失败: {e}")
+                
                 with col1:
                     if f"transition_{i}" in st.session_state:
-                        st.write("**生成的串词:**")
+                        st.write("**生成的开场词:**")
                         for dimension, content in st.session_state[f"transition_{i}"].items():
-                            with st.expander(f"{dimension}"):
+                            with st.expander(f"📝 {dimension}"):
                                 st.write(content)
-                                if st.button(f"使用此串词", key=f"use_{i}_{dimension}"):
+                                if st.button(f"使用此开场词", key=f"use_{i}_{dimension}"):
                                     st.session_state[f"selected_transition_{i}"] = content
-                                    st.success("串词已选择!")
+                                    st.session_state[f"selected_dimension_{i}"] = dimension
+                                    st.success(f"已选择「{dimension}」开场词!")
+                                    st.rerun()
+                        
+                        # Show selected transition
+                        if f"selected_transition_{i}" in st.session_state:
+                            selected_dim = st.session_state.get(f"selected_dimension_{i}", "已选择")
+                            st.success(f"✅ 已选择开场词 [{selected_dim}]: {st.session_state[f'selected_transition_{i}'][:50]}...")
+                    else:
+                        st.info("点击「生成开场词」按钮来为敬拜开始生成引导词")
                 
+                st.write("---")
+                
+            elif i > 0:
+                # Regular transition between songs
+                st.write(f"#### 🔗 从《{songs[selected_songs[i-1]]['title']}》到《{song['title']}》的串词")
+                
+                col1, col2 = st.columns([3, 1])
                 with col2:
                     if st.button(f"生成串词", key=f"generate_{i}"):
                         with st.spinner("正在生成串词..."):
@@ -197,23 +225,58 @@ def worship_flow_designer():
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"生成串词失败: {e}")
+                
+                with col1:
+                    if f"transition_{i}" in st.session_state:
+                        st.write("**生成的串词:**")
+                        for dimension, content in st.session_state[f"transition_{i}"].items():
+                            with st.expander(f"📝 {dimension}"):
+                                st.write(content)
+                                if st.button(f"使用此串词", key=f"use_{i}_{dimension}"):
+                                    st.session_state[f"selected_transition_{i}"] = content
+                                    st.session_state[f"selected_dimension_{i}"] = dimension
+                                    st.success(f"已选择「{dimension}」串词!")
+                                    st.rerun()
+                        
+                        # Show selected transition
+                        if f"selected_transition_{i}" in st.session_state:
+                            selected_dim = st.session_state.get(f"selected_dimension_{i}", "已选择")
+                            st.success(f"✅ 已选择串词 [{selected_dim}]: {st.session_state[f'selected_transition_{i}'][:50]}...")
+                    else:
+                        st.info("点击「生成串词」按钮来为这两首歌生成连接串词")
+                
+                st.write("---")
+            
+            # Show song details
+            st.write(f"### {i+1}. 🎵 {song['title']}")
             
             with st.expander(f"查看 '{song['title']}' 详情"):
                 st.write(f"**作者:** {song.get('author', '未知')}")
                 st.write(f"**调性:** {song.get('key', '未指定')}")
-                st.write(f"**标签:** {', '.join(song.get('tags', []))}")
+                if song.get('tags'):
+                    st.write(f"**标签:** {', '.join(song.get('tags', []))}")
+                st.write("**歌词:**")
                 st.text(song['lyrics'])
         
         st.write("---")
         if st.button("💾 保存敬拜流程"):
-            flow_id = f"{service_date}_service"
+            timestamp = datetime.now().strftime("%H%M%S")
+            flow_id = f"{service_date}_{timestamp}_service"
             
             flow_items = []
             for i, song_id in enumerate(selected_songs):
-                if i > 0 and f"selected_transition_{i}" in st.session_state:
+                # Add opening transition for first song or regular transitions for others
+                if f"selected_transition_{i}" in st.session_state:
+                    dimension = st.session_state.get(f"selected_dimension_{i}", "未指定")
+                    transition_type = "opening" if i == 0 else "transition"
+                    
                     flow_items.append({
                         "type": "transition_text",
-                        "content": st.session_state[f"selected_transition_{i}"]
+                        "content": st.session_state[f"selected_transition_{i}"],
+                        "dimension": dimension,
+                        "transition_type": transition_type,
+                        "from_song": selected_songs[i-1] if i > 0 else None,
+                        "to_song": song_id
                     })
                 
                 flow_items.append({
@@ -296,6 +359,62 @@ def generate_transitions(sermon_title, key_scripture, prev_song, current_song):
     except Exception as e:
         raise Exception(f"API调用失败: {e}")
 
+def generate_opening_transition(sermon_title, key_scripture, song):
+    model = config.get_model()
+    
+    prompt = f"""你是一位非常有经验的、属灵的基督徒敬拜主领。请根据以下信息，为敬拜聚会的开场撰写引导词，引入第一首敬拜诗歌。
+
+主日证道主题：'{sermon_title}'
+核心经文：'{key_scripture}'
+开场诗歌：《{song['title']}》，标签：{', '.join(song.get('tags', []))}
+
+请提供三个不同维度的开场引导词，每个大约80-120字：
+1. 【欢迎维度】: 温暖地欢迎会众，营造敬拜氛围，引导大家准备心灵敬拜神
+2. 【主题维度】: 结合证道主题和经文，引导会众进入今日的属灵焦点
+3. 【祷告维度】: 以祷告的方式开始，求神的同在和祝福，然后引入诗歌
+
+请用中文回答，语言要亲切、属灵、适合华人教会的敬拜氛围。开场词应该能够很自然地过渡到第一首诗歌。"""
+
+    try:
+        response = model.generate_content(prompt)
+        content = response.text
+        
+        lines = content.split('\n')
+        dimensions = {}
+        current_dimension = None
+        current_content = []
+        
+        for line in lines:
+            line = line.strip()
+            if '【欢迎维度】' in line:
+                if current_dimension:
+                    dimensions[current_dimension] = '\n'.join(current_content).strip()
+                current_dimension = "欢迎维度"
+                current_content = []
+            elif '【主题维度】' in line:
+                if current_dimension:
+                    dimensions[current_dimension] = '\n'.join(current_content).strip()
+                current_dimension = "主题维度"
+                current_content = []
+            elif '【祷告维度】' in line:
+                if current_dimension:
+                    dimensions[current_dimension] = '\n'.join(current_content).strip()
+                current_dimension = "祷告维度"
+                current_content = []
+            elif line and current_dimension:
+                current_content.append(line)
+        
+        if current_dimension and current_content:
+            dimensions[current_dimension] = '\n'.join(current_content).strip()
+        
+        if not dimensions:
+            dimensions = {"通用开场词": content}
+        
+        return dimensions
+        
+    except Exception as e:
+        raise Exception(f"API调用失败: {e}")
+
 def rehearsal_mode():
     st.header("🎭 敬拜排练模式")
     
@@ -320,7 +439,7 @@ def rehearsal_mode():
     rehearsal_content.append(f"**核心经文:** {flow['key_scripture']}")
     rehearsal_content.append("\n---\n")
     
-    for i, item in enumerate(flow.get('worship_flow', [])):
+    for item in flow.get('worship_flow', []):
         if item['type'] == 'song':
             song = songs.get(item['song_id'])
             if song:
@@ -338,8 +457,15 @@ def rehearsal_mode():
                 rehearsal_content.append("")
         
         elif item['type'] == 'transition_text':
-            st.info(f"串词: {item['content']}")
-            rehearsal_content.append(f"**串词:** {item['content']}")
+            dimension = item.get('dimension', '串词')
+            transition_type = item.get('transition_type', 'transition')
+            
+            if transition_type == 'opening':
+                st.info(f"🎬 开场 - {dimension}: {item['content']}")
+                rehearsal_content.append(f"**开场 - {dimension}:** {item['content']}")
+            else:
+                st.info(f"🔗 {dimension}: {item['content']}")
+                rehearsal_content.append(f"**{dimension}:** {item['content']}")
             rehearsal_content.append("")
         
         st.write("---")
