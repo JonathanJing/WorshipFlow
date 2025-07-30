@@ -133,8 +133,8 @@ def worship_flow_designer():
     
     with col1:
         st.subheader("主日信息")
-        sermon_title = st.text_input("证道主题 *", placeholder="例如: 行在光明中")
-        key_scripture = st.text_input("核心经文 *", placeholder="例如: 约翰一书 1:7")
+        sermon_title = st.text_input("证道主题", placeholder="例如: 行在光明中", value="你曾怀疑过主吗")
+        key_scripture = st.text_input("核心经文", placeholder="例如: 约翰一书 1:7", value="马太福音 11:1-19")
         service_date = st.date_input("主日日期", datetime.now())
     
     with col2:
