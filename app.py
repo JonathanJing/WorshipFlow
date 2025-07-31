@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from datetime import datetime
 from config import Config
 
@@ -603,6 +604,30 @@ def main():
         if st.sidebar.button(page_name, key=f"nav_{page_key}"):
             st.session_state.page = page_key
             st.rerun()
+    
+    st.sidebar.write("---")
+    
+    # 显示当前系统状态
+    st.sidebar.subheader("🤖 系统状态")
+    
+    # 显示当前模型
+    current_model_display = config.get_model_display_name()
+    st.sidebar.text(f"模型: {current_model_display}")
+    
+    # 显示认证信息
+    auth_method = getattr(config, 'auth_method', 'unknown')
+    auth_display = {"api_key": "API密钥", "service_account": "服务账号", "unknown": "未知"}.get(auth_method, auth_method)
+    st.sidebar.text(f"认证: {auth_display}")
+    
+    # 显示存储信息
+    from storage import storage_manager
+    storage_status = "本地存储" if not storage_manager.is_gcs_available() else "云端存储"
+    st.sidebar.text(f"存储: {storage_status}")
+    
+    # 显示强制本地存储状态
+    force_local = os.getenv('FORCE_LOCAL_STORAGE', 'false').lower() == 'true'
+    if force_local:
+        st.sidebar.text("🏠 强制本地模式")
     
     st.sidebar.write("---")
     st.sidebar.info("💡 **使用提示:**\n- 先在诗歌库中添加诗歌\n- 在设计器中创建敬拜流程\n- 生成AI串词连接诗歌\n- 使用排练模式查看完整流程")
