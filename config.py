@@ -8,6 +8,12 @@ from storage import storage_manager
 load_dotenv()
 
 class Config:
+    # Available Gemini models
+    AVAILABLE_MODELS = {
+        'gemini-2.5-flash': '⚡ Gemini 2.5 Flash (快速)',
+        'gemini-2.5-pro': '🧠 Gemini 2.5 Pro (专业)',
+    }
+    
     def __init__(self):
         self.setup_gemini()
     
@@ -47,8 +53,22 @@ class Config:
             )
     
     @staticmethod
+    def get_current_model_name():
+        """Get the current model name from environment"""
+        return os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+    
+    @staticmethod
     def get_model():
-        return genai.GenerativeModel('gemini-2.5-pro')
+        """Get the configured Gemini model"""
+        model_name = Config.get_current_model_name()
+        return genai.GenerativeModel(model_name)
+    
+    @staticmethod
+    def get_model_display_name():
+        """Get the current model display name"""
+        model_name = Config.get_current_model_name()
+        return Config.AVAILABLE_MODELS.get(model_name, f"未知模型: {model_name}")
+    
     
     @staticmethod
     def load_songs():

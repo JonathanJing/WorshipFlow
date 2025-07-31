@@ -1,6 +1,8 @@
 import streamlit as st
+import os
 from datetime import datetime
 from config import Config
+from logger import user_logger
 
 st.set_page_config(
     page_title="灵泉Flow (WorshipFlow)",
@@ -91,6 +93,10 @@ def song_manager_page():
                     
                     try:
                         config.save_song(song_id, song_data)
+                        
+                        # Log successful song addition
+                        user_logger.log_song_action("song_added", song_data)
+                        
                         # 显示详细的成功信息
                         success_msg = f"✅ **诗歌添加成功！**\n\n"
                         success_msg += f"**标题:** {title}\n"
@@ -110,6 +116,8 @@ def song_manager_page():
                         # 自动刷新页面以清空表单
                         st.rerun()
                     except Exception as e:
+                        # Log error
+                        user_logger.log_error("song_save_failed", str(e), {"song_title": title})
                         st.error(f"❌ 保存失败: {e}")
     
     with tab2:
@@ -138,6 +146,9 @@ def song_manager_page():
             
             if selected_title:
                 selected_song = next(v for v in filtered_songs.values() if v['title'] == selected_title)
+                
+                # Log song view
+                user_logger.log_song_action("song_viewed", selected_song)
                 
                 st.write("---")
                 st.write(f"**标题:** {selected_song['title']}")
@@ -170,6 +181,27 @@ def worship_flow_designer():
     4. 预览和保存完整的敬拜流程
     """
     st.header("✨ 敬拜流程设计器")  # Worship Flow Designer
+    
+    # 检查是否有保存成功的状态并显示
+    if 'flow_save_success' in st.session_state:
+        success_info = st.session_state.flow_save_success
+        
+        # 显示持久的成功消息
+        st.success(f"""
+        🎉 **流程保存成功！**
+        
+        - **流程ID:** {success_info['flow_id']}
+        - **保存时间:** {success_info['timestamp']}
+        - **诗歌数量:** {success_info['song_count']} 首
+        - **AI串词:** {success_info['transition_count']} 个
+        
+        你可以继续编辑当前流程或进入排练模式查看完整内容。
+        """)
+        
+        # 提供清除成功消息的选项
+        if st.button("✅ 确认已知晓", key="dismiss_success"):
+            del st.session_state.flow_save_success
+            st.rerun()
     
     col1, col2 = st.columns([1, 1])
     
@@ -226,8 +258,34 @@ def worship_flow_designer():
                                     sermon_title, key_scripture, song
                                 )
                                 st.session_state[f"transition_{i}"] = transitions
+                                
+                                # Log successful AI generation
+                                user_logger.log_ai_action(
+                                    action="opening_transition_generated",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="opening_transition",
+                                    success=True,
+                                    details={
+                                        "sermon_title": sermon_title,
+                                        "song_title": song['title'],
+                                        "dimensions_generated": list(transitions.keys())
+                                    }
+                                )
+                                
                                 st.rerun()
                             except Exception as e:
+                                # Log AI generation failure
+                                user_logger.log_ai_action(
+                                    action="opening_transition_failed",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="opening_transition",
+                                    success=False,
+                                    details={
+                                        "error": str(e),
+                                        "sermon_title": sermon_title,
+                                        "song_title": song['title']
+                                    }
+                                )
                                 st.error(f"生成开场词失败: {e}")
                 
                 with col1:
@@ -267,8 +325,36 @@ def worship_flow_designer():
                                     sermon_title, key_scripture, prev_song, current_song
                                 )
                                 st.session_state[f"transition_{i}"] = transitions
+                                
+                                # Log successful AI generation
+                                user_logger.log_ai_action(
+                                    action="transition_generated",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="song_transition",
+                                    success=True,
+                                    details={
+                                        "sermon_title": sermon_title,
+                                        "from_song": prev_song['title'],
+                                        "to_song": current_song['title'],
+                                        "dimensions_generated": list(transitions.keys())
+                                    }
+                                )
+                                
                                 st.rerun()
                             except Exception as e:
+                                # Log AI generation failure
+                                user_logger.log_ai_action(
+                                    action="transition_failed",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="song_transition",
+                                    success=False,
+                                    details={
+                                        "error": str(e),
+                                        "sermon_title": sermon_title,
+                                        "from_song": prev_song['title'] if 'prev_song' in locals() else "unknown",
+                                        "to_song": current_song['title'] if 'current_song' in locals() else "unknown"
+                                    }
+                                )
                                 st.error(f"生成串词失败: {e}")
                 
                 with col1:
@@ -346,13 +432,55 @@ def worship_flow_designer():
                 
                 try:
                     config.save_flow(flow_id, flow_data)
-                    st.success("敬拜流程已保存!")
-                    st.rerun()
+                    
+                    # Log successful flow save
+                    user_logger.log_flow_action("flow_saved", flow_data)
+                    
+                    # 显示详细的成功信息
+                    success_msg = f"✅ **敬拜流程保存成功！**\n\n"
+                    success_msg += f"**主题:** {sermon_title}\n"
+                    success_msg += f"**经文:** {key_scripture}\n"
+                    success_msg += f"**日期:** {service_date}\n"
+                    success_msg += f"**诗歌数量:** {len(selected_songs)} 首\n"
+                    
+                    # 统计生成的串词数量
+                    transition_count = len([item for item in flow_items if item.get('type') == 'transition_text'])
+                    if transition_count > 0:
+                        success_msg += f"**AI串词:** {transition_count} 个\n"
+                    
+                    success_msg += f"**流程ID:** {flow_id}\n"
+                    success_msg += f"**保存时间:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    
+                    st.success(success_msg)
+                    
+                    # 显示后续操作提示
+                    st.info("💡 **接下来你可以:**\n- 点击「🎭 进入排练模式」查看完整流程\n- 在「排练模式」页面下载讲稿\n- 继续修改当前流程或创建新流程")
+                    
+                    # 设置成功状态以便显示消息
+                    st.session_state.flow_save_success = {
+                        'flow_id': flow_id,
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'song_count': len(selected_songs),
+                        'transition_count': transition_count
+                    }
+                    
                 except Exception as e:
-                    st.error(f"保存失败: {e}")
+                    # Log error
+                    user_logger.log_error("flow_save_failed", str(e), {
+                        "sermon_title": sermon_title,
+                        "flow_id": flow_id
+                    })
+                    st.error(f"❌ 保存失败: {e}\n\n请检查:\n- 网络连接是否正常\n- 存储权限是否正确\n- 所有必填信息是否完整")
         
         with col2:
             if st.button("🎭 进入排练模式", use_container_width=True):
+                # 记录用户进入排练模式
+                user_logger.log_action("enter_rehearsal_mode", {
+                    "sermon_title": sermon_title,
+                    "song_count": len(selected_songs),
+                    "from_page": "flow_designer"
+                }, "navigation")
+                
                 st.session_state.page = "rehearsal"
                 st.rerun()
     
@@ -364,6 +492,13 @@ def worship_flow_designer():
         st.info("💡 **提示:** 填写证道主题、核心经文并选择诗歌后，可以查看完整的敬拜流程预览")
         
         if st.button("🎭 进入排练模式", help="即使流程未完成也可以预览"):
+            # 记录用户进入排练模式（未完成流程）
+            user_logger.log_action("enter_rehearsal_mode", {
+                "sermon_title": st.session_state.get('sermon_title', 'incomplete'),
+                "flow_status": "incomplete",
+                "from_page": "flow_designer"
+            }, "navigation")
+            
             st.session_state.page = "rehearsal"
             st.rerun()
 
@@ -602,10 +737,46 @@ def main():
     for page_name, page_key in pages.items():
         if st.sidebar.button(page_name, key=f"nav_{page_key}"):
             st.session_state.page = page_key
+            user_logger.log_page_visit(page_name)
             st.rerun()
     
     st.sidebar.write("---")
+    
+    # 显示当前系统状态
+    st.sidebar.subheader("🤖 系统状态")
+    
+    # 显示当前模型
+    current_model_display = config.get_model_display_name()
+    st.sidebar.text(f"模型: {current_model_display}")
+    
+    # 显示认证信息
+    auth_method = getattr(config, 'auth_method', 'unknown')
+    auth_display = {"api_key": "API密钥", "service_account": "服务账号", "unknown": "未知"}.get(auth_method, auth_method)
+    st.sidebar.text(f"认证: {auth_display}")
+    
+    # 显示存储信息
+    from storage import storage_manager
+    storage_status = "本地存储" if not storage_manager.is_gcs_available() else "云端存储"
+    st.sidebar.text(f"存储: {storage_status}")
+    
+    # 显示强制本地存储状态
+    force_local = os.getenv('FORCE_LOCAL_STORAGE', 'false').lower() == 'true'
+    if force_local:
+        st.sidebar.text("🏠 强制本地模式")
+    
+    st.sidebar.write("---")
     st.sidebar.info("💡 **使用提示:**\n- 先在诗歌库中添加诗歌\n- 在设计器中创建敬拜流程\n- 生成AI串词连接诗歌\n- 使用排练模式查看完整流程")
+    
+    # Log initial page load
+    current_page = st.session_state.page
+    if 'logged_pages' not in st.session_state:
+        st.session_state.logged_pages = set()
+    
+    if current_page not in st.session_state.logged_pages:
+        page_names = {v: k for k, v in pages.items()}
+        page_display_name = page_names.get(current_page, current_page)
+        user_logger.log_page_visit(page_display_name)
+        st.session_state.logged_pages.add(current_page)
     
     if st.session_state.page == "song_manager":
         song_manager_page()

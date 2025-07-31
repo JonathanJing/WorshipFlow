@@ -181,3 +181,4 @@ cython_debug/
 .cursorindexingignore
 service-account.json
 /data/flows
+.env.local
