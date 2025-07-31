@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from datetime import datetime
 from config import Config
+from logger import user_logger
 
 st.set_page_config(
     page_title="灵泉Flow (WorshipFlow)",
@@ -92,6 +93,10 @@ def song_manager_page():
                     
                     try:
                         config.save_song(song_id, song_data)
+                        
+                        # Log successful song addition
+                        user_logger.log_song_action("song_added", song_data)
+                        
                         # 显示详细的成功信息
                         success_msg = f"✅ **诗歌添加成功！**\n\n"
                         success_msg += f"**标题:** {title}\n"
@@ -111,6 +116,8 @@ def song_manager_page():
                         # 自动刷新页面以清空表单
                         st.rerun()
                     except Exception as e:
+                        # Log error
+                        user_logger.log_error("song_save_failed", str(e), {"song_title": title})
                         st.error(f"❌ 保存失败: {e}")
     
     with tab2:
@@ -139,6 +146,9 @@ def song_manager_page():
             
             if selected_title:
                 selected_song = next(v for v in filtered_songs.values() if v['title'] == selected_title)
+                
+                # Log song view
+                user_logger.log_song_action("song_viewed", selected_song)
                 
                 st.write("---")
                 st.write(f"**标题:** {selected_song['title']}")
@@ -227,8 +237,34 @@ def worship_flow_designer():
                                     sermon_title, key_scripture, song
                                 )
                                 st.session_state[f"transition_{i}"] = transitions
+                                
+                                # Log successful AI generation
+                                user_logger.log_ai_action(
+                                    action="opening_transition_generated",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="opening_transition",
+                                    success=True,
+                                    details={
+                                        "sermon_title": sermon_title,
+                                        "song_title": song['title'],
+                                        "dimensions_generated": list(transitions.keys())
+                                    }
+                                )
+                                
                                 st.rerun()
                             except Exception as e:
+                                # Log AI generation failure
+                                user_logger.log_ai_action(
+                                    action="opening_transition_failed",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="opening_transition",
+                                    success=False,
+                                    details={
+                                        "error": str(e),
+                                        "sermon_title": sermon_title,
+                                        "song_title": song['title']
+                                    }
+                                )
                                 st.error(f"生成开场词失败: {e}")
                 
                 with col1:
@@ -268,8 +304,36 @@ def worship_flow_designer():
                                     sermon_title, key_scripture, prev_song, current_song
                                 )
                                 st.session_state[f"transition_{i}"] = transitions
+                                
+                                # Log successful AI generation
+                                user_logger.log_ai_action(
+                                    action="transition_generated",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="song_transition",
+                                    success=True,
+                                    details={
+                                        "sermon_title": sermon_title,
+                                        "from_song": prev_song['title'],
+                                        "to_song": current_song['title'],
+                                        "dimensions_generated": list(transitions.keys())
+                                    }
+                                )
+                                
                                 st.rerun()
                             except Exception as e:
+                                # Log AI generation failure
+                                user_logger.log_ai_action(
+                                    action="transition_failed",
+                                    model_name=config.get_current_model_name(),
+                                    prompt_type="song_transition",
+                                    success=False,
+                                    details={
+                                        "error": str(e),
+                                        "sermon_title": sermon_title,
+                                        "from_song": prev_song['title'] if 'prev_song' in locals() else "unknown",
+                                        "to_song": current_song['title'] if 'current_song' in locals() else "unknown"
+                                    }
+                                )
                                 st.error(f"生成串词失败: {e}")
                 
                 with col1:
@@ -347,9 +411,18 @@ def worship_flow_designer():
                 
                 try:
                     config.save_flow(flow_id, flow_data)
+                    
+                    # Log successful flow save
+                    user_logger.log_flow_action("flow_saved", flow_data)
+                    
                     st.success("敬拜流程已保存!")
                     st.rerun()
                 except Exception as e:
+                    # Log error
+                    user_logger.log_error("flow_save_failed", str(e), {
+                        "sermon_title": sermon_title,
+                        "flow_id": flow_id
+                    })
                     st.error(f"保存失败: {e}")
         
         with col2:
@@ -603,6 +676,7 @@ def main():
     for page_name, page_key in pages.items():
         if st.sidebar.button(page_name, key=f"nav_{page_key}"):
             st.session_state.page = page_key
+            user_logger.log_page_visit(page_name)
             st.rerun()
     
     st.sidebar.write("---")
@@ -631,6 +705,17 @@ def main():
     
     st.sidebar.write("---")
     st.sidebar.info("💡 **使用提示:**\n- 先在诗歌库中添加诗歌\n- 在设计器中创建敬拜流程\n- 生成AI串词连接诗歌\n- 使用排练模式查看完整流程")
+    
+    # Log initial page load
+    current_page = st.session_state.page
+    if 'logged_pages' not in st.session_state:
+        st.session_state.logged_pages = set()
+    
+    if current_page not in st.session_state.logged_pages:
+        page_names = {v: k for k, v in pages.items()}
+        page_display_name = page_names.get(current_page, current_page)
+        user_logger.log_page_visit(page_display_name)
+        st.session_state.logged_pages.add(current_page)
     
     if st.session_state.page == "song_manager":
         song_manager_page()
