@@ -220,6 +220,7 @@ gsutil ls gs://your-bucket-name
 ## 版本更新
 
 ### v2.0 (当前版本)
+
 - ✅ 迁移到Google Cloud Storage持久化存储
 - ✅ 支持Google Cloud Run部署
 - ✅ 优化用户体验和成功消息显示
@@ -227,6 +228,7 @@ gsutil ls gs://your-bucket-name
 - ✅ 添加自动fallback存储机制
 
 ### v1.0
+
 - 基础诗歌库管理功能
 - AI串词生成
 - 敬拜流程设计
@@ -235,6 +237,7 @@ gsutil ls gs://your-bucket-name
 ## 技术支持
 
 如需帮助，请：
+
 1. 查看 [部署指南](DEPLOYMENT.md)
 2. 检查 [故障排除](#故障排除) 部分
 3. 提交 [GitHub Issue](https://github.com/your-repo/issues)
@@ -246,3 +249,105 @@ gsutil ls gs://your-bucket-name
 ## 许可证
 
 本项目基于 MIT 许可证开源。
+
+---
+
+# WorshipFlow - English Documentation
+
+AI-powered worship transition generator using Gemini 2.5 Pro to create high-quality song transitions for worship leaders.
+
+## Features
+
+- 🎵 **Song Library Management**: Add and manage worship songs
+- ✨ **Worship Flow Designer**: Create complete Sunday worship flows
+- 🤖 **AI Transition Generation**: Generate multi-dimensional transitions using Gemini 2.5 Pro
+- 🎭 **Rehearsal Mode**: View and export complete worship scripts
+
+## Tech Stack
+
+- **Frontend**: Streamlit
+- **AI Model**: Google Gemini 2.5 Pro
+- **Authentication**: Google Cloud Service Account / API Key
+- **Data Storage**: Google Cloud Storage (with local fallback)
+- **Deployment**: Google Cloud Run
+- **Language**: Python 3.11+
+
+## Quick Start
+
+### 🚀 Cloud Run Deployment (Recommended)
+
+1. **Clone the project**
+   ```bash
+   git clone <your-repo-url>
+   cd WorshipFlow
+   ```
+
+2. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env file, set PROJECT_ID and GEMINI_API_KEY
+   ```
+
+3. **One-click deployment**
+   ```bash
+   export PROJECT_ID="your-project-id"
+   export GEMINI_API_KEY="your-api-key"
+   ./deploy.sh
+   ```
+
+For detailed deployment guide, see [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### 💻 Local Development
+
+#### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 2. Configure authentication
+
+**Method 1: Service Account (Recommended for production)**
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account-key.json
+export GOOGLE_CLOUD_PROJECT=your-project-id
+export GCS_BUCKET_NAME=your-bucket-name  # Optional
+```
+
+**Method 2: API Key (For development/testing)**
+
+```bash
+export GEMINI_API_KEY=your-gemini-api-key
+```
+
+#### 3. Run the application
+
+```bash
+streamlit run app.py
+```
+
+## Architecture Features
+
+### 🔄 Data Storage Strategy
+- **Production**: Google Cloud Storage for persistent storage
+- **Development**: Automatic fallback to local file storage
+- **Data Format**: Unified JSON format for easy migration and backup
+
+### 🛡️ Security
+- **Authentication**: Supports both Service Account and API Key authentication
+- **Permissions**: Principle of least privilege, only grant necessary API access
+- **Secret Management**: Recommend using Secret Manager for sensitive information
+
+### ⚡ Performance Optimization
+- **Containerization**: Docker containers ensure environment consistency
+- **Auto Scaling**: Cloud Run automatically adjusts instances based on load
+- **Caching**: Streamlit built-in caching improves response time
+
+## Contributing
+
+Welcome to submit Issues and Pull Requests to improve this project.
+
+## License
+
+This project is open source under the MIT License.

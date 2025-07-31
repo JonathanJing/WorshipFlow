@@ -7,18 +7,44 @@ import tempfile
 
 
 class CloudStorageManager:
-    """Cloud Storage manager for WorshipFlow data"""
+    """
+    Cloud Storage manager for WorshipFlow data
+    云存储管理器，用于管理WorshipFlow数据
+    
+    This class provides a unified interface for storing and retrieving
+    worship songs and flows data, with automatic fallback to local storage
+    when Cloud Storage is not available.
+    
+    该类为存储和检索敬拜诗歌和流程数据提供统一接口，
+    当Cloud Storage不可用时自动回退到本地存储。
+    """
     
     def __init__(self, bucket_name: Optional[str] = None):
+        """
+        Initialize CloudStorageManager
+        初始化云存储管理器
+        
+        Args:
+            bucket_name: GCS bucket name, defaults to env var or 'worshipflow-data'
+                        GCS存储桶名称，默认为环境变量或'worshipflow-data'
+        """
         self.bucket_name = bucket_name or os.getenv('GCS_BUCKET_NAME', 'worshipflow-data')
         self.client = None
         self.bucket = None
         self._initialize_client()
     
     def _initialize_client(self):
-        """Initialize GCS client"""
+        """
+        Initialize GCS client / 初始化GCS客户端
+        
+        Attempts to connect to Google Cloud Storage using default credentials.
+        Falls back to local storage if connection fails.
+        
+        尝试使用默认凭证连接Google Cloud Storage。
+        如果连接失败则回退到本地存储。
+        """
         try:
-            # Try to get default credentials
+            # Try to get default credentials / 尝试获取默认凭证
             credentials, project = default()
             self.client = storage.Client(credentials=credentials, project=project)
             self.bucket = self.client.bucket(self.bucket_name)
@@ -30,29 +56,72 @@ class CloudStorageManager:
             self.bucket = None
     
     def is_gcs_available(self) -> bool:
-        """Check if GCS is available"""
+        """
+        Check if GCS is available / 检查GCS是否可用
+        
+        Returns:
+            bool: True if GCS client and bucket are initialized
+                 如果GCS客户端和存储桶已初始化则返回True
+        """
         return self.client is not None and self.bucket is not None
     
     def _get_blob_name(self, category: str, item_id: str) -> str:
-        """Generate blob name for storage"""
+        """
+        Generate blob name for storage / 生成存储的blob名称
+        
+        Args:
+            category: Data category (songs/flows) / 数据类别（诗歌/流程）
+            item_id: Unique identifier / 唯一标识符
+            
+        Returns:
+            str: Formatted blob name / 格式化的blob名称
+        """
         return f"{category}/{item_id}.json"
     
     def save_json(self, category: str, item_id: str, data: Dict[str, Any]) -> bool:
-        """Save JSON data to GCS or local fallback"""
+        """
+        Save JSON data to GCS or local fallback / 将JSON数据保存到GCS或本地备选
+        
+        Args:
+            category: Data category (songs/flows) / 数据类别（诗歌/流程）
+            item_id: Unique identifier / 唯一标识符
+            data: JSON data to save / 要保存的JSON数据
+            
+        Returns:
+            bool: True if save successful / 保存成功返回True
+        """
         if self.is_gcs_available():
             return self._save_to_gcs(category, item_id, data)
         else:
             return self._save_to_local(category, item_id, data)
     
     def load_json(self, category: str, item_id: str) -> Optional[Dict[str, Any]]:
-        """Load JSON data from GCS or local fallback"""
+        """
+        Load JSON data from GCS or local fallback / 从GCS或本地备选加载JSON数据
+        
+        Args:
+            category: Data category (songs/flows) / 数据类别（诗歌/流程）
+            item_id: Unique identifier / 唯一标识符
+            
+        Returns:
+            Optional[Dict]: Loaded data or None if not found / 加载的数据，未找到则返回None
+        """
         if self.is_gcs_available():
             return self._load_from_gcs(category, item_id)
         else:
             return self._load_from_local(category, item_id)
     
     def list_items(self, category: str) -> Dict[str, Dict[str, Any]]:
-        """List all items in a category from GCS or local fallback"""
+        """
+        List all items in a category from GCS or local fallback
+        从GCS或本地备选列出类别中的所有项目
+        
+        Args:
+            category: Data category (songs/flows) / 数据类别（诗歌/流程）
+            
+        Returns:
+            Dict: All items in the category / 类别中的所有项目
+        """
         if self.is_gcs_available():
             return self._list_from_gcs(category)
         else:

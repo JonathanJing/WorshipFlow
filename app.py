@@ -19,12 +19,23 @@ def get_config():
 config = get_config()
 
 def song_manager_page():
-    st.header("🎵 诗歌库管理")
+    """
+    Song Library Management Page / 诗歌库管理页面
     
-    tab1, tab2 = st.tabs(["添加新歌", "查看诗歌"])
+    This function renders the song management interface with two tabs:
+    1. Add new songs with metadata and lyrics
+    2. Browse and search existing songs
+    
+    该函数渲染诗歌管理界面，包含两个标签页：
+    1. 添加新诗歌及其元数据和歌词
+    2. 浏览和搜索现有诗歌
+    """
+    st.header("🎵 诗歌库管理")  # Song Library Management
+    
+    tab1, tab2 = st.tabs(["添加新歌", "查看诗歌"])  # Add New Song, View Songs
     
     with tab1:
-        st.subheader("添加新诗歌")
+        st.subheader("添加新诗歌")  # Add New Song
         
         with st.form("add_song_form"):
             title = st.text_input("诗歌标题 *", placeholder="例如: Here I Am to Worship")
@@ -143,15 +154,30 @@ def song_manager_page():
             st.info("没有找到匹配的诗歌。")
 
 def worship_flow_designer():
-    st.header("✨ 敬拜流程设计器")
+    """
+    Worship Flow Designer Page / 敬拜流程设计器页面
+    
+    This function creates the main worship planning interface where users can:
+    1. Input sermon information (title, scripture, date)
+    2. Select worship songs in order
+    3. Generate AI-powered transitions between songs
+    4. Preview and save the complete worship flow
+    
+    该函数创建主要的敬拜规划界面，用户可以：
+    1. 输入证道信息（标题、经文、日期）
+    2. 按顺序选择敬拜诗歌
+    3. 生成AI驱动的诗歌间过渡词
+    4. 预览和保存完整的敬拜流程
+    """
+    st.header("✨ 敬拜流程设计器")  # Worship Flow Designer
     
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.subheader("主日信息")
-        sermon_title = st.text_input("证道主题", placeholder="例如: 行在光明中", value="你曾怀疑过主吗")
-        key_scripture = st.text_input("核心经文", placeholder="例如: 约翰一书 1:7", value="马太福音 11:1-19")
-        service_date = st.date_input("主日日期", datetime.now())
+        st.subheader("主日信息")  # Sunday Service Information
+        sermon_title = st.text_input("证道主题", placeholder="例如: 行在光明中", value="你曾怀疑过主吗")  # Sermon Topic
+        key_scripture = st.text_input("核心经文", placeholder="例如: 约翰一书 1:7", value="马太福音 11:1-19")  # Key Scripture
+        service_date = st.date_input("主日日期", datetime.now())  # Service Date
     
     with col2:
         st.subheader("选择诗歌")
@@ -342,6 +368,25 @@ def worship_flow_designer():
             st.rerun()
 
 def generate_transitions(sermon_title, key_scripture, prev_song, current_song):
+    """
+    Generate AI-powered transitions between worship songs
+    生成AI驱动的敬拜诗歌过渡词
+    
+    This function uses Gemini AI to create contextual transitions that bridge
+    two worship songs, considering the sermon topic, scripture, and song lyrics.
+    
+    该函数使用Gemini AI创建上下文相关的过渡词，连接两首敬拜诗歌，
+    考虑证道主题、经文和歌词内容。
+    
+    Args:
+        sermon_title: The sermon topic / 证道主题
+        key_scripture: The key scripture reference / 核心经文引用
+        prev_song: Previous song data / 上一首歌数据
+        current_song: Current song data / 当前歌曲数据
+        
+    Returns:
+        Dict: Generated transitions in different dimensions / 不同维度的生成过渡词
+    """
     model = config.get_model()
     
     prompt = f"""你是一位经验丰富的、属灵的基督徒敬拜主领。请根据以下信息，为两首敬拜诗歌之间撰写连接性的串词。

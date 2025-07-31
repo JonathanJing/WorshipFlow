@@ -1,35 +1,42 @@
 #!/bin/bash
 
 # WorshipFlow - Cloud Run Deployment Script
+# WorshipFlow - Google Cloud Run 部署脚本
+# 
+# Prerequisites: Ensure gcloud CLI is installed and authenticated
 # 使用前请确保: gcloud CLI已安装并已认证
 
 set -e
 
-# 配置变量
+# Configuration Variables / 配置变量
 PROJECT_ID=${PROJECT_ID:-"your-project-id"}
 SERVICE_NAME=${SERVICE_NAME:-"worshipflow"}
 REGION=${REGION:-"asia-east1"}
 BUCKET_NAME=${BUCKET_NAME:-"${PROJECT_ID}-worshipflow-data"}
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 
+echo "🚀 Deploying WorshipFlow to Google Cloud Run"
 echo "🚀 部署 WorshipFlow 到 Google Cloud Run"
-echo "项目ID: $PROJECT_ID"
-echo "服务名称: $SERVICE_NAME"
-echo "区域: $REGION"
-echo "存储桶: $BUCKET_NAME"
+echo "Project ID / 项目ID: $PROJECT_ID"
+echo "Service Name / 服务名称: $SERVICE_NAME"
+echo "Region / 区域: $REGION"
+echo "Bucket / 存储桶: $BUCKET_NAME"
 
-# 检查必要的环境变量
+# Check required environment variables / 检查必要的环境变量
 if [ "$PROJECT_ID" = "your-project-id" ]; then
+    echo "❌ Please set PROJECT_ID environment variable"
     echo "❌ 请设置 PROJECT_ID 环境变量"
     echo "export PROJECT_ID=your-actual-project-id"
     exit 1
 fi
 
-# 设置项目
+# Set gcloud project / 设置项目
+echo "📋 Setting gcloud project..."
 echo "📋 设置 gcloud 项目..."
 gcloud config set project $PROJECT_ID
 
-# 启用必要的API
+# Enable required APIs / 启用必要的API
+echo "🔌 Enabling required Google Cloud APIs..."
 echo "🔌 启用必要的 Google Cloud APIs..."
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable run.googleapis.com
