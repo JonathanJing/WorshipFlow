@@ -128,10 +128,35 @@ class UserActionLogger:
             str: Unique user session ID / 唯一用户会话ID
         """
         if 'user_session_id' not in st.session_state:
-            # Generate unique session ID based on session info and timestamp
-            session_info = f"{st.runtime.get_instance().session_id}_{datetime.now().isoformat()}"
-            user_id = hashlib.md5(session_info.encode()).hexdigest()[:12]
-            st.session_state.user_session_id = user_id
+            try:
+                # Try to get session ID from Streamlit runtime
+                runtime = st.runtime.get_instance()
+                session_id = getattr(runtime, 'session_id', None)
+                
+                if session_id is None:
+                    # Try alternative methods to get session info
+                    try:
+                        from streamlit.runtime.scriptrunner import get_script_run_ctx
+                        ctx = get_script_run_ctx()
+                        session_id = ctx.session_id if ctx else None
+                    except (ImportError, AttributeError):
+                        session_id = None
+                
+                # Fallback: generate based on timestamp and random info
+                if session_id is None:
+                    import uuid
+                    session_id = str(uuid.uuid4())[:8]
+                
+                # Generate unique session ID based on session info and timestamp
+                session_info = f"{session_id}_{datetime.now().isoformat()}"
+                user_id = hashlib.md5(session_info.encode()).hexdigest()[:12]
+                st.session_state.user_session_id = user_id
+                
+            except Exception:
+                # Final fallback: use timestamp-based ID
+                import uuid
+                fallback_id = str(uuid.uuid4())[:12]
+                st.session_state.user_session_id = fallback_id
         
         return st.session_state.user_session_id
     
@@ -143,28 +168,57 @@ class UserActionLogger:
         Returns:
             Dict: User context data / 用户上下文数据
         """
+        # Get basic info
+        user_id = self.get_user_id()
+        timestamp = datetime.now().isoformat()
+        page = st.session_state.get('page', 'unknown')
+        
+        # Try to get session and client info
+        session_id = "unknown"
+        client_ip = "unknown"
+        user_agent = "unknown"
+        
         try:
-            # Get Streamlit session context
-            ctx = st.runtime.get_instance().get_current_session()
+            # Try to get session ID using different methods
+            runtime = st.runtime.get_instance()
+            session_id = getattr(runtime, 'session_id', None)
             
-            return {
-                "user_id": self.get_user_id(),
-                "session_id": st.runtime.get_instance().session_id,
-                "client_ip": getattr(ctx, 'client_ip', 'unknown') if ctx else 'unknown',
-                "user_agent": getattr(ctx, 'user_agent', 'unknown') if ctx else 'unknown',
-                "timestamp": datetime.now().isoformat(),
-                "page": st.session_state.get('page', 'unknown')
-            }
+            if session_id is None:
+                try:
+                    from streamlit.runtime.scriptrunner import get_script_run_ctx
+                    ctx = get_script_run_ctx()
+                    session_id = getattr(ctx, 'session_id', 'unknown') if ctx else 'unknown'
+                except (ImportError, AttributeError):
+                    pass
+            
+            # Try to get session context for client info
+            try:
+                session_ctx = getattr(runtime, 'get_current_session', lambda: None)()
+                if session_ctx:
+                    client_ip = getattr(session_ctx, 'client_ip', 'unknown')
+                    user_agent = getattr(session_ctx, 'user_agent', 'unknown')
+                else:
+                    # Try alternative method
+                    from streamlit.runtime.scriptrunner import get_script_run_ctx
+                    script_ctx = get_script_run_ctx()
+                    if script_ctx and hasattr(script_ctx, 'session_state'):
+                        # Extract from request headers if available
+                        pass
+            except (ImportError, AttributeError, Exception):
+                pass
+                
         except Exception:
-            # Fallback for cases where session context is not available
-            return {
-                "user_id": self.get_user_id(),
-                "session_id": "unknown",
-                "client_ip": "unknown", 
-                "user_agent": "unknown",
-                "timestamp": datetime.now().isoformat(),
-                "page": st.session_state.get('page', 'unknown')
-            }
+            # Use fallback values
+            pass
+        
+        return {
+            "user_id": user_id,
+            "session_id": str(session_id) if session_id else "unknown",
+            "client_ip": client_ip,
+            "user_agent": user_agent,
+            "timestamp": timestamp,
+            "page": page
+        }
     
     def log_action(self, action: str, details: Optional[Dict[str, Any]] = None, 
                    category: str = "general"):

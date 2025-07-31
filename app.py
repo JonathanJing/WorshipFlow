@@ -182,6 +182,27 @@ def worship_flow_designer():
     """
     st.header("✨ 敬拜流程设计器")  # Worship Flow Designer
     
+    # 检查是否有保存成功的状态并显示
+    if 'flow_save_success' in st.session_state:
+        success_info = st.session_state.flow_save_success
+        
+        # 显示持久的成功消息
+        st.success(f"""
+        🎉 **流程保存成功！**
+        
+        - **流程ID:** {success_info['flow_id']}
+        - **保存时间:** {success_info['timestamp']}
+        - **诗歌数量:** {success_info['song_count']} 首
+        - **AI串词:** {success_info['transition_count']} 个
+        
+        你可以继续编辑当前流程或进入排练模式查看完整内容。
+        """)
+        
+        # 提供清除成功消息的选项
+        if st.button("✅ 确认已知晓", key="dismiss_success"):
+            del st.session_state.flow_save_success
+            st.rerun()
+    
     col1, col2 = st.columns([1, 1])
     
     with col1:
@@ -415,18 +436,51 @@ def worship_flow_designer():
                     # Log successful flow save
                     user_logger.log_flow_action("flow_saved", flow_data)
                     
-                    st.success("敬拜流程已保存!")
-                    st.rerun()
+                    # 显示详细的成功信息
+                    success_msg = f"✅ **敬拜流程保存成功！**\n\n"
+                    success_msg += f"**主题:** {sermon_title}\n"
+                    success_msg += f"**经文:** {key_scripture}\n"
+                    success_msg += f"**日期:** {service_date}\n"
+                    success_msg += f"**诗歌数量:** {len(selected_songs)} 首\n"
+                    
+                    # 统计生成的串词数量
+                    transition_count = len([item for item in flow_items if item.get('type') == 'transition_text'])
+                    if transition_count > 0:
+                        success_msg += f"**AI串词:** {transition_count} 个\n"
+                    
+                    success_msg += f"**流程ID:** {flow_id}\n"
+                    success_msg += f"**保存时间:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    
+                    st.success(success_msg)
+                    
+                    # 显示后续操作提示
+                    st.info("💡 **接下来你可以:**\n- 点击「🎭 进入排练模式」查看完整流程\n- 在「排练模式」页面下载讲稿\n- 继续修改当前流程或创建新流程")
+                    
+                    # 设置成功状态以便显示消息
+                    st.session_state.flow_save_success = {
+                        'flow_id': flow_id,
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'song_count': len(selected_songs),
+                        'transition_count': transition_count
+                    }
+                    
                 except Exception as e:
                     # Log error
                     user_logger.log_error("flow_save_failed", str(e), {
                         "sermon_title": sermon_title,
                         "flow_id": flow_id
                     })
-                    st.error(f"保存失败: {e}")
+                    st.error(f"❌ 保存失败: {e}\n\n请检查:\n- 网络连接是否正常\n- 存储权限是否正确\n- 所有必填信息是否完整")
         
         with col2:
             if st.button("🎭 进入排练模式", use_container_width=True):
+                # 记录用户进入排练模式
+                user_logger.log_action("enter_rehearsal_mode", {
+                    "sermon_title": sermon_title,
+                    "song_count": len(selected_songs),
+                    "from_page": "flow_designer"
+                }, "navigation")
+                
                 st.session_state.page = "rehearsal"
                 st.rerun()
     
@@ -438,6 +492,13 @@ def worship_flow_designer():
         st.info("💡 **提示:** 填写证道主题、核心经文并选择诗歌后，可以查看完整的敬拜流程预览")
         
         if st.button("🎭 进入排练模式", help="即使流程未完成也可以预览"):
+            # 记录用户进入排练模式（未完成流程）
+            user_logger.log_action("enter_rehearsal_mode", {
+                "sermon_title": st.session_state.get('sermon_title', 'incomplete'),
+                "flow_status": "incomplete",
+                "from_page": "flow_designer"
+            }, "navigation")
+            
             st.session_state.page = "rehearsal"
             st.rerun()
 
