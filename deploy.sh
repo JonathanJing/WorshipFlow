@@ -52,9 +52,21 @@ else
     echo "📦 存储桶 $BUCKET_NAME 已存在"
 fi
 
-# 构建Docker镜像
+# Build Docker image / 构建Docker镜像
+echo "🔨 Building Docker image..."
 echo "🔨 构建 Docker 镜像..."
-gcloud builds submit --tag $IMAGE_NAME
+
+# Try using cloudbuild.yaml if it exists, otherwise use direct command
+# 如果存在cloudbuild.yaml则使用它，否则使用直接命令
+if [ -f "cloudbuild.yaml" ]; then
+    echo "📋 Using cloudbuild.yaml configuration..."
+    echo "📋 使用 cloudbuild.yaml 配置..."
+    gcloud builds submit --config=cloudbuild.yaml --substitutions=_SERVICE_NAME=$SERVICE_NAME,_REGION=$REGION
+else
+    echo "📋 Using direct build command..."
+    echo "📋 使用直接构建命令..."
+    gcloud builds submit --tag $IMAGE_NAME --logging=CLOUD_LOGGING_ONLY
+fi
 
 # 部署到Cloud Run
 echo "🚀 部署到 Cloud Run..."

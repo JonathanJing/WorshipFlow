@@ -79,9 +79,14 @@ gsutil mb -l asia-east1 gs://$PROJECT_ID-worshipflow-data
 ### 3. 构建 Docker 镜像
 
 ```bash
-# 使用 Cloud Build 构建镜像
-gcloud builds submit --tag gcr.io/$PROJECT_ID/worshipflow
+# 方法一：使用 cloudbuild.yaml 配置文件（推荐）
+gcloud builds submit --config=cloudbuild.yaml
+
+# 方法二：使用直接命令（如果遇到日志配置错误）
+gcloud builds submit --tag gcr.io/$PROJECT_ID/worshipflow --logging=CLOUD_LOGGING_ONLY
 ```
+
+**注意**: 如果遇到 `build.service_account` 相关的日志配置错误，使用 `--logging=CLOUD_LOGGING_ONLY` 参数可以解决。
 
 ### 4. 部署到 Cloud Run
 
@@ -199,23 +204,34 @@ gcloud run deploy worshipflow \
 
 ### 常见问题
 
-1. **部署失败 - 权限错误**
+1. **Cloud Build 日志配置错误**
+   ```
+   错误: if 'build.service_account' is specified, the build must either (a) specify 'build.logs_bucket'...
+   ```
+   **解决方案**:
+   - 使用 `--logging=CLOUD_LOGGING_ONLY` 参数
+   - 或者使用提供的 `cloudbuild.yaml` 配置文件
+   ```bash
+   gcloud builds submit --tag gcr.io/$PROJECT_ID/worshipflow --logging=CLOUD_LOGGING_ONLY
+   ```
+
+2. **部署失败 - 权限错误**
    ```bash
    # 确保你有必要的IAM权限
    gcloud auth list
    gcloud projects get-iam-policy $PROJECT_ID
    ```
 
-2. **应用启动失败 - 端口错误**
+3. **应用启动失败 - 端口错误**
    - 确保 Dockerfile 中 EXPOSE 8080
    - 确保 streamlit 配置使用 $PORT 环境变量
 
-3. **Gemini API 调用失败**
+4. **Gemini API 调用失败**
    - 检查 API Key 是否有效
    - 确保 Generative Language API 已启用
    - 检查环境变量设置
 
-4. **Cloud Storage 访问失败**
+5. **Cloud Storage 访问失败**
    - 确保存储桶存在且可访问
    - 检查服务账户权限
    - 验证 GCS_BUCKET_NAME 环境变量
