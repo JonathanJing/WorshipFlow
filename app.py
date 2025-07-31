@@ -34,6 +34,49 @@ def song_manager_page():
     """
     st.header("🎵 诗歌库管理")  # Song Library Management
     
+    # 检查是否有保存成功的状态并显示
+    if 'song_save_success' in st.session_state:
+        success_info = st.session_state.song_save_success
+        
+        # 显示持久的成功消息
+        success_msg = f"""
+        🎉 **诗歌添加成功！**
+        
+        - **标题:** {success_info['title']}
+        - **作者:** {success_info.get('author', '未指定')}
+        - **调性:** {success_info.get('key', '未指定')}
+        - **标签:** {', '.join(success_info.get('tags', [])) if success_info.get('tags') else '无'}
+        - **保存时间:** {success_info['timestamp']}
+        - **文件ID:** `{success_info['song_id']}`
+        
+        你可以在「查看诗歌」标签页中查看刚添加的诗歌，或前往敬拜流程设计页面使用。
+        """
+        
+        st.success(success_msg)
+        
+        # 提供操作按钮
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📖 查看此诗歌", key="view_added_song"):
+                # 切换到查看诗歌标签页并设置选中的诗歌
+                st.session_state.selected_song_title = success_info['title']
+                # 清除成功状态
+                del st.session_state.song_save_success
+                st.rerun()
+        
+        with col2:
+            if st.button("🎼 去流程设计", key="goto_flow_design"):
+                # 清除成功状态并跳转到流程设计
+                del st.session_state.song_save_success
+                st.session_state.page = "flow_designer"
+                st.rerun()
+        
+        with col3:
+            if st.button("✅ 确认已知晓", key="dismiss_song_success"):
+                del st.session_state.song_save_success
+                st.rerun()
+    
     tab1, tab2 = st.tabs(["添加新歌", "查看诗歌"])  # Add New Song, View Songs
     
     with tab1:
@@ -97,28 +140,23 @@ def song_manager_page():
                         # Log successful song addition
                         user_logger.log_song_action("song_added", song_data)
                         
-                        # 显示详细的成功信息
-                        success_msg = f"✅ **诗歌添加成功！**\n\n"
-                        success_msg += f"**标题:** {title}\n"
-                        if author:
-                            success_msg += f"**作者:** {author}\n"
-                        if key:
-                            success_msg += f"**调性:** {key}\n"
-                        if tags:
-                            success_msg += f"**标签:** {', '.join(tags)}\n"
-                        success_msg += f"**保存位置:** data/songs/{song_id}.json"
+                        # 设置成功状态以便显示消息
+                        st.session_state.song_save_success = {
+                            'song_id': song_id,
+                            'title': title,
+                            'author': author,
+                            'key': key,
+                            'tags': tags,
+                            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        }
                         
-                        st.success(success_msg)
-                        
-                        # 显示后续操作提示
-                        st.info("💡 **接下来你可以:**\n- 在「查看诗歌」标签页中查看刚添加的诗歌\n- 前往「敬拜流程设计」页面使用这首诗歌")
-                        
-                        # 自动刷新页面以清空表单
+                        # 重新运行以显示成功状态
                         st.rerun()
+                        
                     except Exception as e:
                         # Log error
                         user_logger.log_error("song_save_failed", str(e), {"song_title": title})
-                        st.error(f"❌ 保存失败: {e}")
+                        st.error(f"❌ 保存失败: {e}\n\n请检查:\n- 网络连接是否正常\n- 存储权限是否正确\n- 诗歌信息是否完整")
     
     with tab2:
         st.subheader("诗歌库")
@@ -142,7 +180,19 @@ def song_manager_page():
         
         if filtered_songs:
             song_titles = [v['title'] for v in filtered_songs.values()]
-            selected_title = st.selectbox("选择诗歌", song_titles)
+            
+            # 检查是否有预选的诗歌（从成功消息跳转过来的）
+            default_index = 0
+            if 'selected_song_title' in st.session_state:
+                try:
+                    default_index = song_titles.index(st.session_state.selected_song_title)
+                    # 清除预选状态
+                    del st.session_state.selected_song_title
+                except ValueError:
+                    # 如果找不到预选的诗歌，使用默认值
+                    default_index = 0
+            
+            selected_title = st.selectbox("选择诗歌", song_titles, index=default_index)
             
             if selected_title:
                 selected_song = next(v for v in filtered_songs.values() if v['title'] == selected_title)
