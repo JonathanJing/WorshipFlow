@@ -48,7 +48,7 @@ class Config:
     
     @staticmethod
     def get_model():
-        return genai.GenerativeModel('gemini-2.5-pro')
+        return genai.GenerativeModel('gemini-2.5-flash')
     
     @staticmethod
     def load_songs():
