@@ -31,6 +31,7 @@ class CloudStorageManager:
         self.bucket_name = bucket_name or os.getenv('GCS_BUCKET_NAME', 'worshipflow-data')
         self.client = None
         self.bucket = None
+        self.force_local = os.getenv('FORCE_LOCAL_STORAGE', 'false').lower() == 'true'
         self._initialize_client()
     
     def _initialize_client(self):
@@ -38,11 +39,17 @@ class CloudStorageManager:
         Initialize GCS client / 初始化GCS客户端
         
         Attempts to connect to Google Cloud Storage using default credentials.
-        Falls back to local storage if connection fails.
+        Falls back to local storage if connection fails or forced local mode is enabled.
         
         尝试使用默认凭证连接Google Cloud Storage。
-        如果连接失败则回退到本地存储。
+        如果连接失败或启用强制本地模式则回退到本地存储。
         """
+        if self.force_local:
+            print("🏠 Force local storage mode enabled")
+            self.client = None
+            self.bucket = None
+            return
+            
         try:
             # Try to get default credentials / 尝试获取默认凭证
             credentials, project = default()
