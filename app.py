@@ -647,15 +647,220 @@ def generate_opening_transition(sermon_title, key_scripture, song):
 def rehearsal_mode():
     st.header("🎭 敬拜排练模式")
     
+    # 添加历史流程加载功能
+    st.subheader("📋 流程选择")
+    
+    # 创建两个选项卡：当前流程和历史流程
+    tab1, tab2 = st.tabs(["当前流程", "历史流程"])
+    
+    with tab1:
+        # 当前流程逻辑（原有的）
+        if 'rehearsal_flow' not in st.session_state:
+            st.warning("没有找到当前敬拜流程数据，请先在设计器中创建流程。")
+            if st.button("返回设计器", key="return_to_designer_current"):
+                st.session_state.page = "flow_designer"
+                st.rerun()
+            return
+        else:
+            flow = st.session_state.rehearsal_flow
+            st.info(f"📅 当前流程：{flow.get('sermon_title', '未命名')} - {flow.get('date', '未知日期')}")
+    
+    with tab2:
+        # 历史流程加载功能
+        st.write("🗂️ **从历史记录中加载敬拜流程**")
+        
+        # 快速加载功能
+        with st.expander("⚡ 快速加载 - 通过流程ID", expanded=False):
+            st.write("如果您知道确切的流程ID，可以直接输入快速加载：")
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                quick_flow_id = st.text_input(
+                    "流程ID", 
+                    placeholder="例如: 2025-07-30_143022_service",
+                    key="quick_flow_id",
+                    help="流程ID格式通常为：日期_时间_service"
+                )
+            
+            with col2:
+                if st.button("🚀 快速加载", key="quick_load_btn"):
+                    if quick_flow_id:
+                        try:
+                            all_flows = config.load_flows()
+                            
+                            if quick_flow_id in all_flows:
+                                flow_data = all_flows[quick_flow_id]
+                                st.session_state.rehearsal_flow = flow_data
+                                
+                                # 记录快速加载
+                                user_logger.log_action("quick_flow_loaded", {
+                                    "flow_id": quick_flow_id,
+                                    "sermon_title": flow_data.get('sermon_title'),
+                                    "date": flow_data.get('date'),
+                                    "load_method": "quick_id"
+                                }, "flow_management")
+                                
+                                st.success(f"✅ 已快速加载流程：{flow_data.get('sermon_title', '未命名')}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ 未找到流程ID: {quick_flow_id}")
+                                
+                                # 建议相似的ID
+                                similar_ids = [fid for fid in all_flows.keys() if quick_flow_id.lower() in fid.lower()]
+                                if similar_ids:
+                                    st.write("💡 **您是否在寻找这些流程？**")
+                                    for similar_id in similar_ids[:5]:  # 只显示前5个相似的
+                                        flow_data = all_flows[similar_id]
+                                        st.write(f"• `{similar_id}` - {flow_data.get('sermon_title', '未命名')}")
+                        except Exception as e:
+                            st.error(f"❌ 快速加载失败: {e}")
+                            user_logger.log_error("quick_flow_load_failed", str(e), {
+                                "attempted_flow_id": quick_flow_id
+                            })
+                    else:
+                        st.warning("请输入流程ID")
+        
+        st.write("---")
+        
+        # 获取所有历史流程
+        try:
+            all_flows = config.load_flows()
+            
+            if not all_flows:
+                st.info("📝 暂无历史敬拜流程记录。创建并保存第一个流程后，就可以在这里查看历史记录了。")
+                if st.button("前往创建流程", key="goto_create_flow"):
+                    st.session_state.page = "flow_designer"
+                    st.rerun()
+                return
+            
+            # 按日期排序流程（最新的在前）
+            sorted_flows = dict(sorted(all_flows.items(), key=lambda x: x[1].get('date', ''), reverse=True))
+            
+            st.write(f"📊 找到 **{len(sorted_flows)}** 个历史流程")
+            
+            # 流程搜索和过滤
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                search_term = st.text_input("🔍 搜索流程", placeholder="输入主题、经文或日期关键词...", key="flow_search")
+            
+            with col2:
+                # 日期范围过滤
+                date_filter = st.selectbox("📅 日期过滤", ["全部", "最近7天", "最近30天", "最近3个月"], key="date_filter")
+            
+            # 应用搜索过滤
+            filtered_flows = sorted_flows
+            
+            if search_term:
+                filtered_flows = {
+                    k: v for k, v in sorted_flows.items()
+                    if (search_term.lower() in v.get('sermon_title', '').lower() or
+                        search_term.lower() in v.get('key_scripture', '').lower() or
+                        search_term.lower() in v.get('date', '').lower())
+                }
+            
+            # 应用日期过滤
+            if date_filter != "全部":
+                from datetime import datetime, timedelta
+                today = datetime.now().date()
+                
+                if date_filter == "最近7天":
+                    cutoff_date = today - timedelta(days=7)
+                elif date_filter == "最近30天":
+                    cutoff_date = today - timedelta(days=30)
+                elif date_filter == "最近3个月":
+                    cutoff_date = today - timedelta(days=90)
+                
+                filtered_flows = {
+                    k: v for k, v in filtered_flows.items()
+                    if datetime.strptime(v.get('date', '1900-01-01'), '%Y-%m-%d').date() >= cutoff_date
+                }
+            
+            if not filtered_flows:
+                st.warning("🔍 没有找到匹配的流程，请尝试其他搜索条件。")
+                return
+            
+            st.write(f"显示 **{len(filtered_flows)}** 个匹配的流程：")
+            
+            # 显示流程列表
+            for flow_id, flow_data in filtered_flows.items():
+                with st.expander(f"📋 {flow_data.get('sermon_title', '未命名')} - {flow_data.get('date', '未知日期')}", expanded=False):
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    
+                    with col1:
+                        st.write(f"**主题:** {flow_data.get('sermon_title', '未命名')}")
+                        st.write(f"**经文:** {flow_data.get('key_scripture', '未指定')}")
+                        st.write(f"**日期:** {flow_data.get('date', '未知')}")
+                        
+                        # 统计信息
+                        worship_flow = flow_data.get('worship_flow', [])
+                        song_count = len([item for item in worship_flow if item.get('type') == 'song'])
+                        transition_count = len([item for item in worship_flow if item.get('type') == 'transition_text'])
+                        
+                        st.write(f"**诗歌数量:** {song_count} 首")
+                        st.write(f"**AI串词:** {transition_count} 个")
+                    
+                    with col2:
+                        st.write(f"**流程ID:** `{flow_id}`")
+                        
+                        # 复制ID按钮
+                        if st.button("📋 复制ID", key=f"copy_{flow_id}", help="复制流程ID到剪贴板"):
+                            # 使用streamlit的复制功能（如果可用）或显示提示
+                            st.info(f"流程ID已复制: `{flow_id}`\n\n您可以在'快速加载'功能中粘贴此ID")
+                        
+                        # 显示包含的诗歌
+                        if worship_flow:
+                            songs = []
+                            for item in worship_flow:
+                                if item.get('type') == 'song':
+                                    song_id = item.get('song_id')
+                                    songs.append(song_id)
+                            
+                            if songs:
+                                st.write("**包含诗歌:**")
+                                # 获取诗歌标题
+                                all_songs = config.load_songs()
+                                for song_id in songs[:3]:  # 只显示前3首
+                                    song_title = all_songs.get(song_id, {}).get('title', song_id)
+                                    st.write(f"• {song_title}")
+                                if len(songs) > 3:
+                                    st.write(f"• ...还有{len(songs)-3}首")
+                    
+                    with col3:
+                        if st.button(f"📥 加载此流程", key=f"load_{flow_id}"):
+                            # 加载选中的流程到当前排练模式
+                            st.session_state.rehearsal_flow = flow_data
+                            
+                            # 记录历史流程加载
+                            user_logger.log_action("historical_flow_loaded", {
+                                "flow_id": flow_id,
+                                "sermon_title": flow_data.get('sermon_title'),
+                                "date": flow_data.get('date'),
+                                "song_count": song_count,
+                                "transition_count": transition_count
+                            }, "flow_management")
+                            
+                            st.success(f"✅ 已加载流程：{flow_data.get('sermon_title', '未命名')}")
+                            st.rerun()
+                        
+                        if st.button(f"🗑️ 删除", key=f"delete_{flow_id}"):
+                            # 这里可以添加删除确认对话框
+                            st.error("删除功能暂时禁用，避免误操作")
+            
+        except Exception as e:
+            st.error(f"❌ 加载历史流程时出错: {e}")
+            user_logger.log_error("historical_flow_load_failed", str(e), {"context": "rehearsal_mode"})
+            return
+    
+    # 检查是否有流程数据（当前或历史）
     if 'rehearsal_flow' not in st.session_state:
-        st.warning("没有找到敬拜流程数据，请先在设计器中创建流程。")
-        if st.button("返回设计器"):
-            st.session_state.page = "flow_designer"
-            st.rerun()
         return
     
+    # 下面是原有的排练模式显示逻辑
     flow = st.session_state.rehearsal_flow
     songs = config.load_songs()
+    
+    st.write("---")
     
     # 检查流程是否为空
     if not flow.get('worship_flow') and not flow.get('sermon_title'):
