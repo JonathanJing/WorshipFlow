@@ -1,0 +1,55 @@
+# Cloud Build configuration for WorshipFlow
+# WorshipFlow 的 Cloud Build 配置
+
+steps:
+  # Build the Docker image / 构建Docker镜像
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 'gcr.io/$PROJECT_ID/worshipflow:latest',
+      '-t', 'gcr.io/$PROJECT_ID/worshipflow:$SHORT_SHA',
+      '.'
+    ]
+    id: 'build-image'
+
+  # Push the image to Container Registry / 推送镜像到容器注册表
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/worshipflow:latest']
+    id: 'push-latest'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/worshipflow:$SHORT_SHA']
+    id: 'push-sha'
+
+# Images to be pushed to Container Registry / 要推送到容器注册表的镜像
+images:
+  - 'gcr.io/$PROJECT_ID/worshipflow:latest'
+  - 'gcr.io/$PROJECT_ID/worshipflow:$SHORT_SHA'
+
+# Build options / 构建选项
+options:
+  # Use Cloud Logging for build logs / 使用Cloud Logging记录构建日志
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Machine type for faster builds / 更快构建的机器类型
+  machineType: 'E2_HIGHCPU_8'
+  
+  # Disk size / 磁盘大小
+  diskSizeGb: 100
+  
+  # Use regional user-owned bucket behavior / 使用区域用户拥有的存储桶行为
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+
+# Build timeout / 构建超时
+timeout: '1200s'
+
+# Substitutions for variable replacement / 变量替换的替代值
+substitutions:
+  _SERVICE_NAME: 'worshipflow'
+  _REGION: 'asia-east1'
+
+# Tags for organization / 用于组织的标签
+tags:
+  - 'worshipflow'
+  - 'streamlit'
+  - 'gemini-ai'
