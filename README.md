@@ -155,22 +155,117 @@ streamlit run app.py
 }
 ```
 
-## 架构特点
+## 系统架构
 
-### 🔄 数据存储策略
+### 🏗️ 整体架构概览
+
+WorshipFlow 采用现代化的云原生架构，基于 Google Cloud Platform 构建，提供高可用、可扩展的敬拜串词生成服务。
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   用户界面      │    │    应用层        │    │   Google Cloud  │
+│   (Streamlit)   │<-->│  (Python App)    │<-->│   Services      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                │                         │
+                                │                         ├── Gemini AI
+                                │                         ├── Cloud Storage
+                                │                         ├── Cloud Run
+                                │                         └── Cloud Build
+```
+
+### 🧩 核心组件
+
+#### **1. Google Cloud Storage (数据存储)**
+- **用途**: 持久化存储诗歌库和敬拜流程数据
+- **配置**: 通过 `storage.py` 管理，支持自动fallback到本地存储
+- **存储结构**:
+  ```
+  gs://[PROJECT_ID]-worshipflow-data/
+  ├── songs/          # 诗歌JSON文件
+  │   ├── song1.json
+  │   └── song2.json
+  └── flows/          # 敬拜流程文件
+      ├── flow1.json
+      └── flow2.json
+  ```
+
+#### **2. Google Cloud Build (CI/CD)**
+- **配置文件**: `cloudbuild.yaml`
+- **构建流程**:
+  1. 构建 Docker 镜像
+  2. 推送到 Container Registry
+  3. 标记版本（latest + SHA）
+- **构建选项**:
+  - 机器类型: E2_HIGHCPU_8
+  - 磁盘大小: 100GB
+  - 超时: 1200秒
+
+#### **3. Google Cloud Run (应用部署)**
+- **配置文件**: `service.yaml`
+- **资源配置**:
+  - 内存: 1GB
+  - CPU: 1核心
+  - 最大实例数: 10
+  - 最小实例数: 0（支持冷启动）
+- **环境变量**:
+  - `GCS_BUCKET_NAME`: 存储桶名称
+  - `GOOGLE_CLOUD_PROJECT`: 项目ID
+  - `GEMINI_API_KEY`: Gemini API密钥
+
+#### **4. Gemini AI (核心AI引擎)**
+- **模型支持**:
+  - Gemini 2.5 Flash: 快速响应
+  - Gemini 2.5 Pro: 专业质量
+- **认证方式**:
+  - Service Account（生产环境推荐）
+  - API Key（开发测试）
+- **功能**: 生成多维度敬拜串词（赞美、激励、祷告）
+
+### 🔄 CI/CD 流水线
+
+#### **自动化部署流程**
+```mermaid
+graph LR
+    A[代码提交] --> B[Cloud Build 触发]
+    B --> C[构建 Docker 镜像]
+    C --> D[推送到 Container Registry]
+    D --> E[部署到 Cloud Run]
+    E --> F[健康检查]
+    F --> G[服务就绪]
+```
+
+#### **部署脚本** (`deploy.sh`)
+1. **环境准备**:
+   - 启用必要的Google Cloud APIs
+   - 创建Cloud Storage存储桶
+   - 设置项目配置
+
+2. **构建与部署**:
+   - 使用Cloud Build构建Docker镜像
+   - 部署到Cloud Run服务
+   - 配置环境变量和资源限制
+
+3. **验证**:
+   - 获取服务URL
+   - 输出管理命令
+
+### 🔐 数据存储策略
 - **生产环境**: 使用 Google Cloud Storage 持久化存储
 - **开发环境**: 自动fallback到本地文件存储
 - **数据格式**: 统一的JSON格式，便于迁移和备份
+- **备份策略**: Cloud Storage自动提供多区域冗余
 
-### 🛡️ 安全性
+### 🛡️ 安全性设计
 - **认证**: 支持Service Account和API Key两种认证方式
 - **权限**: 最小权限原则，仅授予必要的API访问权限
 - **密钥管理**: 推荐使用Secret Manager存储敏感信息
+- **容器安全**: 使用非root用户运行应用
 
 ### ⚡ 性能优化
-- **容器化**: Docker容器确保环境一致性
-- **自动扩缩容**: Cloud Run根据负载自动调整实例数量
+- **容器化**: Docker容器确保环境一致性和快速部署
+- **自动扩缩容**: Cloud Run根据负载自动调整实例数量（0-10实例）
 - **缓存策略**: Streamlit内置缓存提升响应速度
+- **镜像优化**: 使用Python 3.11 slim基础镜像减少体积
 
 ## 注意事项
 
